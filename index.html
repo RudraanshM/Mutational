@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Shape Gym Tycoon - Upgraded Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            background: #090a0f;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* HUD Overlay */
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 15px;
+            pointer-events: none;
+        }
+
+        .hud-card {
+            background: rgba(15, 23, 42, 0.88);
+            border: 2px solid #38bdf8;
+            border-radius: 12px;
+            padding: 12px 20px;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+            backdrop-filter: blur(5px);
+        }
+
+        .money-display {
+            font-size: 24px;
+            font-weight: 800;
+            color: #4ade80;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Top Bar Controls */
+        .top-right-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .reset-btn {
+            background: rgba(225, 29, 72, 0.85);
+            border: 1px solid #f43f5e;
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(225, 29, 72, 0.3);
+        }
+
+        .reset-btn:hover {
+            background: #f43f5e;
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.6);
+        }
+
+        /* Inventory Panel */
+        .inventory-panel {
+            width: 310px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 2px solid #818cf8;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 0 20px rgba(129, 140, 248, 0.3);
+            max-height: 75vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inventory-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #c7d2fe;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 5px;
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            overflow-y: auto;
+            max-height: 320px;
+            padding-right: 4px;
+        }
+
+        .inv-slot {
+            aspect-ratio: 1;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: center;
+            padding: 2px;
+            word-break: break-word;
+        }
+
+        .inv-slot:hover {
+            border-color: #38bdf8;
+            background: #334155;
+        }
+
+        .inv-slot.active {
+            border-color: #4ade80;
+            box-shadow: 0 0 8px #4ade80;
+            background: #0f766e;
+        }
+
+        /* Action Prompt */
+        .prompt {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #f43f5e;
+            padding: 14px 32px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fb7185;
+            letter-spacing: 1px;
+            display: none;
+            box-shadow: 0 0 25px rgba(244, 63, 94, 0.4);
+            pointer-events: none;
+            text-align: center;
+        }
+
+        .controls-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid #475569;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: #cbd5e1;
+            pointer-events: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="hud">
+        <div class="hud-card">
+            <div class="money-display" id="money">$100</div>
+            <div class="info-text">Cash Balance</div>
+        </div>
+        <div class="hud-card">
+            <div style="font-size:18px; font-weight:bold; color:#cbd5e1" id="active-db">Plastic 2LB</div>
+            <div class="info-text">Equipped Dumbbell</div>
+        </div>
+    </div>
+
+    <div class="top-right-controls">
+        <button class="reset-btn" onclick="resetSaveData()">RESET SAVE DATA</button>
+
+        <div class="inventory-panel">
+            <div class="inventory-header">
+                <span>BACKPACK</span>
+                <span id="inv-count">0 / 100</span>
+            </div>
+            <div class="inventory-grid" id="inv-grid"></div>
+        </div>
+    </div>
+
+    <div class="controls-info">
+        <strong>CONTROLS:</strong><br>
+        • <b>WASD</b> : Movement<br>
+        • <b>SPACE</b> : Jump<br>
+        • <b>LEFT ARROW</b> : Rotate Right | <b>RIGHT ARROW</b> : Rotate Left<br>
+        • <b>F</b> : Interact / Buy / Place / Pick Up
+    </div>
+
+    <div class="prompt" id="prompt">PRESS [F] TO INTERACT</div>
+
+    <script>
+        // --- DATA CONFIGURATION ---
+        const SHAPE_TIERS = [
+            { name: "Cube", cost: 50, color: 0x38bdf8, baseIncome: 2, geo: () => new THREE.BoxGeometry(1, 1, 1) },
+            { name: "Pyramid", cost: 150, color: 0x34d399, baseIncome: 6, geo: () => new THREE.ConeGeometry(0.8, 1.2, 4) },
+            { name: "Sphere", cost: 500, color: 0xa855f7, baseIncome: 18, geo: () => new THREE.SphereGeometry(0.7, 16, 16) },
+            { name: "Cylinder", cost: 1500, color: 0xfbbf24, baseIncome: 45, geo: () => new THREE.CylinderGeometry(0.6, 0.6, 1.2, 16) },
+            { name: "Torus Ring", cost: 4000, color: 0xf43f5e, baseIncome: 110, geo: () => new THREE.TorusGeometry(0.6, 0.22, 12, 24) },
+            { name: "Octahedron", cost: 10000, color: 0x06b6d4, baseIncome: 260, geo: () => new THREE.OctahedronGeometry(0.8) },
+            { name: "Dodecahedron", cost: 30000, color: 0xec4899, baseIncome: 650, geo: () => new THREE.DodecahedronGeometry(0.75) },
+            { name: "Icosahedron", cost: 85000, color: 0x6366f1, baseIncome: 1600, geo: () => new THREE.IcosahedronGeometry(0.8, 0) },
+            { name: "Torus Knot", cost: 250000, color: 0x10b981, baseIncome: 4200, geo: () => new THREE.TorusKnotGeometry(0.5, 0.16, 64, 8) },
+            { name: "Cosmic Prism", cost: 800000, color: 0xf59e0b, baseIncome: 12000, geo: () => new THREE.ConeGeometry(0.9, 1.5, 7) },
+            { name: "Helix Core", cost: 2000000, color: 0x00ffcc, baseIncome: 30000, geo: () => new THREE.TorusKnotGeometry(0.6, 0.1, 100, 16, 3, 5) },
+            { name: "Tetrahedron", cost: 5000000, color: 0xff0055, baseIncome: 75000, geo: () => new THREE.TetrahedronGeometry(0.9) },
+            { name: "Hex Prism", cost: 12000000, color: 0xcc00ff, baseIncome: 180000, geo: () => new THREE.CylinderGeometry(0.7, 0.7, 1.3, 6) },
+            { name: "Stellated Star", cost: 30000000, color: 0xffff00, baseIncome: 450000, geo: () => new THREE.DodecahedronGeometry(0.8, 1) },
+            { name: "Hyper-Cube", cost: 85000000, color: 0x00aaff, baseIncome: 1200000, geo: () => new THREE.BoxGeometry(1.2, 1.2, 1.2) },
+            { name: "Singularity", cost: 250000000, color: 0xffffff, baseIncome: 3500000, geo: () => new THREE.IcosahedronGeometry(0.85, 2) },
+            { name: "Mobius Strip", cost: 750000000, color: 0xff00aa, baseIncome: 10000000, geo: () => new THREE.TorusGeometry(0.7, 0.1, 8, 30) },
+            { name: "Double Torus", cost: 2200000000, color: 0x00ff88, baseIncome: 28000000, geo: () => new THREE.TorusKnotGeometry(0.6, 0.15, 64, 8, 2, 3) },
+            { name: "Quantum Cube", cost: 6500000000, color: 0x38bdf8, baseIncome: 80000000, geo: () => new THREE.BoxGeometry(1.1, 1.1, 1.1) },
+            { name: "Astral Prism", cost: 20000000000, color: 0xeab308, baseIncome: 240000000, geo: () => new THREE.OctahedronGeometry(1.1) },
+            { name: "Multiverse Orb", cost: 60000000000, color: 0xa855f7, baseIncome: 750000000, geo: () => new THREE.SphereGeometry(1.0, 24, 24) }
+        ];
+
+        const DUMBBELL_TIERS = [
+            { name: "Plastic 2LB", cost: 0, power: 0.02, style: "plastic", color: 0xef4444 },
+            { name: "Iron Hex 10LB", cost: 100, power: 0.05, style: "hex", color: 0x475569 },
+            { name: "Chrome Flex 25LB", cost: 400, power: 0.09, style: "chrome", color: 0xe2e8f0 },
+            { name: "Titan Plate 50LB", cost: 1200, power: 0.14, style: "plate", color: 0x1e293b },
+            { name: "Gilded Gold 100LB", cost: 3500, power: 0.20, style: "gold", color: 0xfacc15 },
+            { name: "Neon Pulse 200LB", cost: 10000, power: 0.28, style: "neon", color: 0x38bdf8 },
+            { name: "Plasma Core 400LB", cost: 30000, power: 0.38, style: "plasma", color: 0xec4899 },
+            { name: "Hyperion 750LB", cost: 90000, power: 0.50, style: "hyperion", color: 0xa855f7 },
+            { name: "Dark Matter 1500LB", cost: 250000, power: 0.65, style: "void", color: 0x111827 },
+            { name: "God Bell 3000LB", cost: 750000, power: 0.85, style: "god", color: 0xfef08a },
+            { name: "Graphene Bar 5000LB", cost: 2000000, power: 1.10, style: "graphene", color: 0x334155 },
+            { name: "Cyberpunk 10K LB", cost: 5000000, power: 1.45, style: "cyber", color: 0x00ff88 },
+            { name: "Magma Maul 25K LB", cost: 15000000, power: 1.90, style: "magma", color: 0xff3300 },
+            { name: "Crystal Shard 60K LB", cost: 45000000, power: 2.50, style: "crystal", color: 0x00ffff },
+            { name: "Void Ring 150K LB", cost: 120000000, power: 3.20, style: "ring", color: 0x8b5cf6 },
+            { name: "Infinity Core INF", cost: 350000000, power: 4.20, style: "infinity", color: 0xff00ff },
+
+            // NEW & ULTRA-COOL SCI-FI DUMBBELLS
+            { name: "Supernova 800K LB", cost: 1000000000, power: 5.50, style: "supernova", color: 0xff6600 },
+            { name: "Chrono Hammer 2M LB", cost: 3000000000, power: 7.20, style: "chronohammer", color: 0x00f0ff },
+            { name: "Neutron Star 5M LB", cost: 8500000000, power: 9.50, style: "neutron", color: 0xffffff },
+            { name: "Dark Energy 15M LB", cost: 25000000000, power: 12.80, style: "darkenergy", color: 0x9333ea },
+            { name: "Omni Core OMEGA", cost: 80000000000, power: 18.00, style: "omniomega", color: 0x10b981 }
+        ];
+
+        const BASE_UPGRADES = [
+            { level: 1, cost: 0, slots: 4, label: "Starter Plot (2x2)" },
+            { level: 2, cost: 500, slots: 9, label: "Medium Base (3x3)" },
+            { level: 3, cost: 3000, slots: 16, label: "Large Compound (4x4)" },
+            { level: 4, cost: 15000, slots: 25, label: "Mega Complex (5x5)" }
+        ];
+
+        // --- GAME STATE ---
+        let state = {
+            money: 100,
+            dumbbellTier: 0,
+            inventory: [],
+            selectedInvIndex: null,
+            baseLevel: 1,
+            baseSlots: new Array(25).fill(null),
+            cameraAngle: 0,
+            gymState: {
+                shape: null,
+                dumbbellTier: 0
+            }
+        };
+
+        // --- JUMPING PHYSICS STATE ---
+        let velocityY = 0;
+        let isGrounded = true;
+        const GRAVITY = -32;
+        const JUMP_FORCE = 12;
+
+        // --- LOCAL STORAGE PERSISTENCE ---
+        const SAVE_KEY = '3d_gym_tycoon_save_v1';
+
+        function saveGame() {
+            const dataToSave = {
+                money: state.money,
+                dumbbellTier: state.dumbbellTier,
+                inventory: state.inventory,
+                baseLevel: state.baseLevel,
+                gymStateShape: state.gymState.shape,
+                baseSlotsData: state.baseSlots.map(slot => slot ? {
+                    id: slot.id,
+                    tierIndex: slot.tierIndex,
+                    scale: slot.scale,
+                    income: slot.income,
+                    name: slot.name
+                } : null)
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(dataToSave));
+        }
+
+        function loadGame() {
+            const savedRaw = localStorage.getItem(SAVE_KEY);
+            if (!savedRaw) return;
+
+            try {
+                const saved = JSON.parse(savedRaw);
+                state.money = Math.max(0, saved.money || 100);
+                state.dumbbellTier = saved.dumbbellTier || 0;
+                state.inventory = saved.inventory || [];
+                state.baseLevel = saved.baseLevel || 1;
+                state.gymState.shape = saved.gymStateShape || null;
+
+                if (saved.baseSlotsData) {
+                    saved.baseSlotsData.forEach((slotData, idx) => {
+                        if (slotData) {
+                            const tier = SHAPE_TIERS[slotData.tierIndex];
+                            const mesh = new THREE.Mesh(
+                                tier.geo(),
+                                new THREE.MeshStandardMaterial({ color: tier.color, roughness: 0.2 })
+                            );
+                            mesh.scale.setScalar(slotData.scale * 0.8);
+                            mesh.position.set(slotPositions[idx].x, 1 + slotData.scale * 0.3, slotPositions[idx].z);
+                            mesh.castShadow = true;
+                            scene.add(mesh);
+
+                            state.baseSlots[idx] = {
+                                ...slotData,
+                                mesh: mesh
+                            };
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse save data:", e);
+            }
+        }
+
+        function resetSaveData() {
+            if (confirm("Are you sure you want to reset all game progress?")) {
+                localStorage.removeItem(SAVE_KEY);
+                location.reload();
+            }
+        }
+
+        // --- THREE.JS SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0d14);
+        scene.fog = new THREE.FogExp2(0x0a0d14, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.1);
+        sunLight.position.set(40, 60, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // --- ENVIRONMENT: GREEN GRASS ---
+        const grassGeo = new THREE.PlaneGeometry(300, 300);
+        const canvasGrass = document.createElement('canvas');
+        canvasGrass.width = 256;
+        canvasGrass.height = 256;
+        const ctxG = canvasGrass.getContext('2d');
+        ctxG.fillStyle = '#166534';
+        ctxG.fillRect(0, 0, 256, 256);
+        for(let i=0; i<4000; i++) {
+            ctxG.fillStyle = Math.random() > 0.5 ? '#15803d' : '#22c55e';
+            ctxG.fillRect(Math.random()*256, Math.random()*256, 2, 3);
+        }
+        const grassTex = new THREE.CanvasTexture(canvasGrass);
+        grassTex.wrapS = THREE.RepeatWrapping;
+        grassTex.wrapT = THREE.RepeatWrapping;
+        grassTex.repeat.set(30, 30);
+
+        const grassFloor = new THREE.Mesh(grassGeo, new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9 }));
+        grassFloor.rotation.x = -Math.PI / 2;
+        grassFloor.receiveShadow = true;
+        scene.add(grassFloor);
+
+        // --- CHARACTER: BLACK RECTANGLE ---
+        const playerGroup = new THREE.Group();
+        const bodyGeo = new THREE.BoxGeometry(1.2, 2.2, 0.8);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+        bodyMesh.position.y = 1.1;
+        bodyMesh.castShadow = true;
+        playerGroup.add(bodyMesh);
+
+        // Visor
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.1), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+        visor.position.set(0, 1.7, 0.41);
+        playerGroup.add(visor);
+
+        playerGroup.position.set(0, 0, 5);
+        scene.add(playerGroup);
+
+        // --- ADVANCED DUMBBELL 3D BUILDER ---
+        function createDumbbellMesh(tierIndex) {
+            const dbGroup = new THREE.Group();
+            const data = DUMBBELL_TIERS[tierIndex];
+
+            const barMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.9, roughness: 0.1 });
+            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 12), barMat);
+            bar.rotation.z = Math.PI / 2;
+            dbGroup.add(bar);
+
+            const style = data.style;
+            const mat = new THREE.MeshStandardMaterial({
+                color: data.color,
+                metalness: ['chrome', 'gold', 'plasma', 'graphene', 'cyber', 'crystal'].includes(style) ? 0.9 : 0.3,
+                roughness: 0.2
+            });
+
+            if (style === 'plastic') {
+                const geo = new THREE.SphereGeometry(0.2, 12, 12);
+                const s1 = new THREE.Mesh(geo, mat); s1.position.x = -0.4;
+                const s2 = new THREE.Mesh(geo, mat); s2.position.x = 0.4;
+                dbGroup.add(s1, s2);
+            } else if (style === 'hex') {
+                const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.22, 6);
+                const h1 = new THREE.Mesh(geo, mat); h1.rotation.z = Math.PI/2; h1.position.x = -0.4;
+                const h2 = new THREE.Mesh(geo, mat); h2.rotation.z = Math.PI/2; h2.position.x = 0.4;
+                dbGroup.add(h1, h2);
+            } else if (style === 'supernova') {
+                // Dual Blazing Plasma Spheres with Energy Halos
+                const coreGeo = new THREE.SphereGeometry(0.28, 16, 16);
+                const glowMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+                const ringGeo = new THREE.TorusGeometry(0.38, 0.03, 8, 24);
+                
+                for (let side of [-1, 1]) {
+                    const c = new THREE.Mesh(coreGeo, glowMat); c.position.x = side * 0.45;
+                    const r = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+                    r.position.x = side * 0.45; r.rotation.y = Math.PI / 2;
+                    dbGroup.add(c, r);
+                }
+            } else if (style === 'chronohammer') {
+                // Dual Sci-Fi Hammer Heads
+                const headGeo = new THREE.BoxGeometry(0.4, 0.5, 0.4);
+                const neonMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+                for (let side of [-1, 1]) {
+                    const h = new THREE.Mesh(headGeo, mat); h.position.x = side * 0.42;
+                    const n = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.42), neonMat); n.position.x = side * 0.42;
+                    dbGroup.add(h, n);
+                }
+            } else if (style === 'neutron') {
+                // Concentric Energy Rings with Pure White Core
+                const coreGeo = new THREE.SphereGeometry(0.2, 16, 16);
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const r1Geo = new THREE.TorusGeometry(0.32, 0.04, 12, 24);
+                const r2Geo = new THREE.TorusGeometry(0.42, 0.03, 12, 24);
+                const ringMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 1 });
+
+                for (let side of [-1, 1]) {
+                    const c = new THREE.Mesh(coreGeo, coreMat); c.position.x = side * 0.45;
+                    const r1 = new THREE.Mesh(r1Geo, ringMat); r1.position.x = side * 0.45; r1.rotation.y = Math.PI/2;
+                    const r2 = new THREE.Mesh(r2Geo, ringMat); r2.position.x = side * 0.45; r2.rotation.x = Math.PI/2;
+                    dbGroup.add(c, r1, r2);
+                }
+            } else if (style === 'darkenergy') {
+                // Obsidian Void Shards
+                const shardGeo = new THREE.OctahedronGeometry(0.32);
+                const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.8 });
+                const auraMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+
+                for (let side of [-1, 1]) {
+                    const s = new THREE.Mesh(shardGeo, darkMat); s.position.x = side * 0.45;
+                    const a = new THREE.Mesh(new THREE.OctahedronGeometry(0.36), auraMat);
+                    a.position.x = side * 0.45; a.scale.set(1.05, 1.05, 1.05);
+                    dbGroup.add(s, a);
+                }
+            } else if (style === 'omniomega') {
+                // Quantum Infinity Core Matrix
+                const centerGeo = new THREE.IcosahedronGeometry(0.25, 1);
+                const centerMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+                const ring1 = new THREE.TorusGeometry(0.36, 0.04, 12, 24);
+                const ring2 = new THREE.TorusGeometry(0.46, 0.03, 12, 24);
+                const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9 });
+
+                for (let side of [-1, 1]) {
+                    const c = new THREE.Mesh(centerGeo, centerMat); c.position.x = side * 0.45;
+                    const rg1 = new THREE.Mesh(ring1, goldMat); rg1.position.x = side * 0.45; rg1.rotation.y = Math.PI/3;
+                    const rg2 = new THREE.Mesh(ring2, goldMat); rg2.position.x = side * 0.45; rg2.rotation.x = Math.PI/3;
+                    dbGroup.add(c, rg1, rg2);
+                }
+            } else {
+                // Standard plates / rings
+                for (let side of [-1, 1]) {
+                    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 16), mat);
+                    p.rotation.z = Math.PI/2;
+                    p.position.x = side * 0.35;
+                    dbGroup.add(p);
+                }
+            }
+
+            return dbGroup;
+        }
+
+        let handDumbbell = createDumbbellMesh(0);
+        handDumbbell.position.set(0.8, 1.1, 0.2);
+        handDumbbell.rotation.y = Math.PI / 2;
+        playerGroup.add(handDumbbell);
+
+        function updateHandDumbbell() {
+            playerGroup.remove(handDumbbell);
+            handDumbbell = createDumbbellMesh(state.dumbbellTier);
+            handDumbbell.position.set(0.8, 1.1, 0.2);
+            handDumbbell.rotation.y = Math.PI / 2;
+            playerGroup.add(handDumbbell);
+            document.getElementById('active-db').innerText = DUMBBELL_TIERS[state.dumbbellTier].name;
+        }
+
+        // --- MAP LOCATIONS ---
+        const gymGroup = new THREE.Group();
+        gymGroup.position.set(-25, 0, -25);
+        gymGroup.add(new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, 20), new THREE.MeshStandardMaterial({ color: 0x1e1b4b })));
+
+        const shapePad = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 0.25, 32), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7 }));
+        shapePad.position.set(-4, 0.2, 0);
+        gymGroup.add(shapePad);
+
+        const dbPad = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 0.25, 32), new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0x9f1239 }));
+        dbPad.position.set(4, 0.2, 0);
+        gymGroup.add(dbPad);
+
+        scene.add(gymGroup);
+
+        let gymShapeMesh = null;
+        let gymDumbbellMesh = null;
+
+        // Expanded Shape Store Floor
+        const shapeStoreGroup = new THREE.Group();
+        shapeStoreGroup.position.set(-5, 0, -48);
+        shapeStoreGroup.add(new THREE.Mesh(new THREE.BoxGeometry(65, 0.2, 22), new THREE.MeshStandardMaterial({ color: 0xd97706 })));
+        scene.add(shapeStoreGroup);
+
+        const shapePedestals = [];
+        SHAPE_TIERS.forEach((tier, i) => {
+            const posX = -32 + (i % 8) * 3.6;
+            const posZ = -54 + Math.floor(i / 8) * 5.5;
+
+            const ped = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.2, 1.4, 0.4, 16),
+                new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.3 })
+            );
+            ped.position.set(posX, 0.2, posZ);
+            scene.add(ped);
+
+            const mesh = new THREE.Mesh(tier.geo(), new THREE.MeshStandardMaterial({ color: tier.color }));
+            mesh.position.set(posX, 1.2, posZ);
+            scene.add(mesh);
+
+            shapePedestals.push({ posX, posZ, tierIndex: i, data: tier });
+        });
+
+        // Expanded Dumbbell Store Floor
+        const dbStoreGroup = new THREE.Group();
+        dbStoreGroup.position.set(38, 0, -25);
+        dbStoreGroup.add(new THREE.Mesh(new THREE.BoxGeometry(50, 0.2, 24), new THREE.MeshStandardMaterial({ color: 0x059669 })));
+        scene.add(dbStoreGroup);
+
+        DUMBBELL_TIERS.forEach((db, i) => {
+            const dbM = createDumbbellMesh(i);
+            dbM.position.set(18 + (i % 6) * 3.6, 1.2, -33 + Math.floor(i / 6) * 5);
+            scene.add(dbM);
+        });
+
+        const baseFloorMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(26, 0.1, 26),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b })
+        );
+        baseFloorMesh.position.set(0, 0.05, 20);
+        baseFloorMesh.receiveShadow = true;
+        scene.add(baseFloorMesh);
+
+        const baseUpgradePedestal = new THREE.Mesh(
+            new THREE.CylinderGeometry(2, 2, 0.4, 32),
+            new THREE.MeshStandardMaterial({ color: 0xeab308, emissive: 0x854d0e })
+        );
+        baseUpgradePedestal.position.set(-18, 0.2, 20);
+        scene.add(baseUpgradePedestal);
+
+        const slotPositions = [];
+        const slotMeshes = [];
+
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                const x = -10 + c * 5;
+                const z = 10 + r * 5;
+                slotPositions.push({ x, z, row: r, col: c });
+
+                const slotMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(4, 0.15, 4),
+                    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 })
+                );
+                slotMesh.position.set(x, 0.12, z);
+                slotMesh.receiveShadow = true;
+                scene.add(slotMesh);
+                slotMeshes.push(slotMesh);
+            }
+        }
+
+        function updateBaseGridSlots() {
+            const currentData = BASE_UPGRADES[state.baseLevel - 1];
+            const maxDimension = Math.sqrt(currentData.slots);
+
+            slotPositions.forEach((pos, i) => {
+                const isUnlocked = pos.row < maxDimension && pos.col < maxDimension;
+                slotMeshes[i].material.color.setHex(isUnlocked ? 0x475569 : 0x0f172a);
+            });
+        }
+
+        // INIT LOAD FROM SAVE FILE
+        loadGame();
+        updateBaseGridSlots();
+
+        // --- INVENTORY SYSTEM ---
+        const invGridEl = document.getElementById('inv-grid');
+        const invCountEl = document.getElementById('inv-count');
+
+        function renderInventoryUI() {
+            invGridEl.innerHTML = '';
+            invCountEl.innerText = `${state.inventory.length} / 100`;
+
+            for (let i = 0; i < 100; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+
+                if (i < state.inventory.length) {
+                    const item = state.inventory[i];
+                    slot.innerHTML = `<b>${item.name.split(' ')[0]}</b><span>${item.scale.toFixed(1)}x</span>`;
+                    if (state.selectedInvIndex === i) slot.classList.add('active');
+
+                    slot.onclick = () => {
+                        state.selectedInvIndex = (state.selectedInvIndex === i) ? null : i;
+                        renderInventoryUI();
+                        updateHandItemMesh();
+                    };
+                }
+                invGridEl.appendChild(slot);
+            }
+        }
+
+        let handShapeMesh = null;
+        function updateHandItemMesh() {
+            if (handShapeMesh) {
+                playerGroup.remove(handShapeMesh);
+                handShapeMesh = null;
+            }
+
+            if (state.selectedInvIndex !== null && state.inventory[state.selectedInvIndex]) {
+                const item = state.inventory[state.selectedInvIndex];
+                const tier = SHAPE_TIERS[item.tierIndex];
+                handShapeMesh = new THREE.Mesh(
+                    tier.geo(),
+                    new THREE.MeshStandardMaterial({ color: tier.color })
+                );
+                handShapeMesh.scale.setScalar(0.35 * Math.min(item.scale, 2.5));
+                handShapeMesh.position.set(-0.8, 1.2, 0.2);
+                playerGroup.add(handShapeMesh);
+            }
+        }
+
+        // --- INTERACTION LOGIC ---
+        const promptEl = document.getElementById('prompt');
+        let currentAction = null;
+
+        function checkInteractions() {
+            const px = playerGroup.position.x;
+            const pz = playerGroup.position.z;
+            currentAction = null;
+
+            // FREE-CHOICE SHAPE SELECTION IN STORE
+            for (let i = 0; i < shapePedestals.length; i++) {
+                const ped = shapePedestals[i];
+                if (Math.hypot(px - ped.posX, pz - ped.posZ) < 2.0) {
+                    const data = ped.data;
+                    promptEl.innerText = `[F] BUY ${data.name.toUpperCase()} ($${data.cost.toLocaleString()})`;
+                    promptEl.style.display = 'block';
+                    currentAction = { type: 'BUY_SHAPE', tierIndex: i };
+                    return;
+                }
+            }
+
+            for (let i = 0; i < DUMBBELL_TIERS.length; i++) {
+                const dbX = 18 + (i % 6) * 3.6;
+                const dbZ = -33 + Math.floor(i / 6) * 5;
+                if (Math.hypot(px - dbX, pz - dbZ) < 2.2) {
+                    const data = DUMBBELL_TIERS[i];
+                    promptEl.innerText = `[F] BUY / EQUIP ${data.name.toUpperCase()} ($${data.cost.toLocaleString()})`;
+                    promptEl.style.display = 'block';
+                    currentAction = { type: 'BUY_DUMBBELL', tierIndex: i };
+                    return;
+                }
+            }
+
+            if (Math.hypot(px - (-29), pz - (-25)) < 3.5) {
+                if (state.selectedInvIndex !== null) {
+                    promptEl.innerText = `[F] PLACE SHAPE ON GYM PAD`;
+                    promptEl.style.display = 'block';
+                    currentAction = { type: 'GYM_PLACE_SHAPE' };
+                } else if (state.gymState.shape) {
+                    promptEl.innerText = `[F] REMOVE SHAPE FROM GYM PAD`;
+                    promptEl.style.display = 'block';
+                    currentAction = { type: 'GYM_REMOVE_SHAPE' };
+                } else {
+                    promptEl.innerText = `SELECT A SHAPE IN INVENTORY TO PLACE IN GYM`;
+                    promptEl.style.display = 'block';
+                }
+                return;
+            }
+
+            if (Math.hypot(px - (-18), pz - 20) < 3) {
+                if (state.baseLevel < BASE_UPGRADES.length) {
+                    const nextUp = BASE_UPGRADES[state.baseLevel];
+                    promptEl.innerText = `[F] UPGRADE BASE TO ${nextUp.label.toUpperCase()} ($${nextUp.cost.toLocaleString()})`;
+                    promptEl.style.display = 'block';
+                    currentAction = { type: 'UPGRADE_BASE' };
+                } else {
+                    promptEl.innerText = `BASE AT MAX LEVEL!`;
+                    promptEl.style.display = 'block';
+                }
+                return;
+            }
+
+            const currentCap = BASE_UPGRADES[state.baseLevel - 1].slots;
+            const maxDimension = Math.sqrt(currentCap);
+
+            for (let i = 0; i < slotPositions.length; i++) {
+                const slot = slotPositions[i];
+                if (slot.row < maxDimension && slot.col < maxDimension) {
+                    if (Math.hypot(px - slot.x, pz - slot.z) < 2.5) {
+                        if (state.baseSlots[i] === null && state.selectedInvIndex !== null) {
+                            promptEl.innerText = `[F] PLACE SHAPE IN SLOT #${i + 1}`;
+                            promptEl.style.display = 'block';
+                            currentAction = { type: 'PLACE_SLOT', slotIndex: i };
+                            return;
+                        } else if (state.baseSlots[i] !== null) {
+                            promptEl.innerText = `[F] PICK UP SHAPE FROM SLOT #${i + 1} ($${state.baseSlots[i].income.toLocaleString()}/sec)`;
+                            promptEl.style.display = 'block';
+                            currentAction = { type: 'PICKUP_SLOT', slotIndex: i };
+                            return;
+                        }
+                    }
+                }
+            }
+
+            promptEl.style.display = 'none';
+        }
+
+        function handleInteract() {
+            if (!currentAction) return;
+
+            if (currentAction.type === 'BUY_SHAPE') {
+                const tier = SHAPE_TIERS[currentAction.tierIndex];
+                if (state.money >= tier.cost && state.inventory.length < 100) {
+                    state.money -= tier.cost;
+                    state.inventory.push({
+                        id: Date.now() + Math.random(),
+                        tierIndex: currentAction.tierIndex,
+                        scale: 1.0,
+                        income: tier.baseIncome,
+                        name: tier.name
+                    });
+                    state.selectedInvIndex = state.inventory.length - 1;
+                    updateHUD();
+                    renderInventoryUI();
+                    updateHandItemMesh();
+                    saveGame();
+                }
+            }
+
+            if (currentAction.type === 'BUY_DUMBBELL') {
+                const data = DUMBBELL_TIERS[currentAction.tierIndex];
+                if (state.money >= data.cost) {
+                    state.money -= data.cost;
+                    state.dumbbellTier = currentAction.tierIndex;
+                    updateHUD();
+                    updateHandDumbbell();
+                    updateGymVisuals();
+                    saveGame();
+                }
+            }
+
+            if (currentAction.type === 'GYM_PLACE_SHAPE') {
+                if (state.selectedInvIndex !== null) {
+                    if (state.gymState.shape) {
+                        state.inventory.push(state.gymState.shape);
+                    }
+                    state.gymState.shape = state.inventory[state.selectedInvIndex];
+                    state.inventory.splice(state.selectedInvIndex, 1);
+                    state.selectedInvIndex = null;
+
+                    updateGymVisuals();
+                    updateHUD();
+                    renderInventoryUI();
+                    updateHandItemMesh();
+                    saveGame();
+                }
+            }
+
+            if (currentAction.type === 'GYM_REMOVE_SHAPE') {
+                if (state.gymState.shape && state.inventory.length < 100) {
+                    state.inventory.push(state.gymState.shape);
+                    state.gymState.shape = null;
+
+                    updateGymVisuals();
+                    updateHUD();
+                    renderInventoryUI();
+                    updateHandItemMesh();
+                    saveGame();
+                }
+            }
+
+            if (currentAction.type === 'UPGRADE_BASE') {
+                const nextUp = BASE_UPGRADES[state.baseLevel];
+                if (state.money >= nextUp.cost) {
+                    state.money -= nextUp.cost;
+                    state.baseLevel += 1;
+                    updateBaseGridSlots();
+                    updateHUD();
+                    saveGame();
+                }
+            }
+
+            if (currentAction.type === 'PLACE_SLOT') {
+                const idx = currentAction.slotIndex;
+                const item = state.inventory[state.selectedInvIndex];
+                const tier = SHAPE_TIERS[item.tierIndex];
+
+                const mesh = new THREE.Mesh(
+                    tier.geo(),
+                    new THREE.MeshStandardMaterial({ color: tier.color, roughness: 0.2 })
+                );
+                mesh.scale.setScalar(item.scale * 0.8);
+                mesh.position.set(slotPositions[idx].x, 1 + item.scale * 0.3, slotPositions[idx].z);
+                mesh.castShadow = true;
+                scene.add(mesh);
+
+                state.baseSlots[idx] = {
+                    ...item,
+                    mesh: mesh
+                };
+
+                state.inventory.splice(state.selectedInvIndex, 1);
+                state.selectedInvIndex = null;
+
+                updateHUD();
+                renderInventoryUI();
+                updateHandItemMesh();
+                saveGame();
+            }
+
+            if (currentAction.type === 'PICKUP_SLOT') {
+                const idx = currentAction.slotIndex;
+                const slotItem = state.baseSlots[idx];
+
+                if (state.inventory.length < 100) {
+                    scene.remove(slotItem.mesh);
+
+                    state.inventory.push({
+                        id: slotItem.id,
+                        tierIndex: slotItem.tierIndex,
+                        scale: slotItem.scale,
+                        income: slotItem.income,
+                        name: slotItem.name
+                    });
+
+                    state.baseSlots[idx] = null;
+                    state.selectedInvIndex = state.inventory.length - 1;
+
+                    updateHUD();
+                    renderInventoryUI();
+                    updateHandItemMesh();
+                    saveGame();
+                }
+            }
+        }
+
+        function updateGymVisuals() {
+            if (gymShapeMesh) {
+                scene.remove(gymShapeMesh);
+                gymShapeMesh = null;
+            }
+            if (gymDumbbellMesh) {
+                scene.remove(gymDumbbellMesh);
+                gymDumbbellMesh = null;
+            }
+
+            if (state.gymState.shape) {
+                const item = state.gymState.shape;
+                const tier = SHAPE_TIERS[item.tierIndex];
+                gymShapeMesh = new THREE.Mesh(
+                    tier.geo(),
+                    new THREE.MeshStandardMaterial({ color: tier.color })
+                );
+                gymShapeMesh.scale.setScalar(item.scale);
+                gymShapeMesh.position.set(-29, 1.2 + item.scale * 0.4, -25);
+                scene.add(gymShapeMesh);
+            }
+
+            gymDumbbellMesh = createDumbbellMesh(state.dumbbellTier);
+            gymDumbbellMesh.position.set(-21, 1.2, -25);
+            gymDumbbellMesh.scale.setScalar(1.5);
+            scene.add(gymDumbbellMesh);
+        }
+
+        function updateHUD() {
+            document.getElementById('money').innerText = `$${state.money.toLocaleString()}`;
+        }
+
+        // --- AUTO GYM PUMP TICKER (2 SECONDS) ---
+        setInterval(() => {
+            if (state.gymState.shape) {
+                const shapeItem = state.gymState.shape;
+                const dbPower = DUMBBELL_TIERS[state.dumbbellTier].power;
+
+                shapeItem.scale += dbPower;
+                shapeItem.income = Math.floor(SHAPE_TIERS[shapeItem.tierIndex].baseIncome * shapeItem.scale);
+
+                if (gymShapeMesh) {
+                    gymShapeMesh.scale.setScalar(shapeItem.scale);
+                    gymShapeMesh.position.y = 1.2 + shapeItem.scale * 0.4;
+                    gymShapeMesh.rotation.y += 0.4;
+                }
+                if (gymDumbbellMesh) {
+                    gymDumbbellMesh.rotation.x += 0.5;
+                }
+
+                renderInventoryUI();
+            }
+        }, 2000);
+
+        // --- PASSIVE INCOME TICKER ---
+        setInterval(() => {
+            let passiveTotal = 0;
+            state.baseSlots.forEach(slot => {
+                if (slot !== null) {
+                    passiveTotal += slot.income;
+                    slot.mesh.rotation.y += 0.03;
+                }
+            });
+            if (passiveTotal > 0) {
+                state.money += passiveTotal;
+                updateHUD();
+            }
+        }, 1000);
+
+        // --- AUTO SAVE TIMER (EVERY 3 SECONDS) ---
+        setInterval(() => {
+            saveGame();
+        }, 3000);
+
+        // --- INPUT CONTROLS ---
+        const keys = { w: false, a: false, s: false, d: false, arrowleft: false, arrowright: false, space: false };
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === ' ') keys.space = true;
+            if (keys.hasOwnProperty(k)) keys[k] = true;
+            if (k === 'f') handleInteract();
+        });
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === ' ') keys.space = false;
+            if (keys.hasOwnProperty(k)) keys[k] = false;
+        });
+
+        // --- GAME LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const moveSpeed = 13 * delta;
+
+            // SWAPPED ARROW KEYS ROTATION
+            if (keys.arrowleft) state.cameraAngle += 1.8 * delta;
+            if (keys.arrowright) state.cameraAngle -= 1.8 * delta;
+
+            // JUMPING PHYSICS ENGINE
+            if (keys.space && isGrounded) {
+                velocityY = JUMP_FORCE;
+                isGrounded = false;
+            }
+
+            if (!isGrounded) {
+                playerGroup.position.y += velocityY * delta;
+                velocityY += GRAVITY * delta;
+
+                if (playerGroup.position.y <= 0) {
+                    playerGroup.position.y = 0;
+                    velocityY = 0;
+                    isGrounded = true;
+                }
+            }
+
+            // WASD CAMERA-RELATIVE MOVEMENT
+            let localX = 0;
+            let localZ = 0;
+
+            if (keys.w) localZ += 1;
+            if (keys.s) localZ -= 1;
+            if (keys.a) localX += 1;
+            if (keys.d) localX -= 1;
+
+            if (localX !== 0 || localZ !== 0) {
+                const length = Math.hypot(localX, localZ);
+                const normX = localX / length;
+                const normZ = localZ / length;
+
+                const angle = state.cameraAngle;
+                const worldX = normX * Math.cos(angle) + normZ * Math.sin(angle);
+                const worldZ = -normX * Math.sin(angle) + normZ * Math.cos(angle);
+
+                playerGroup.position.x += worldX * moveSpeed;
+                playerGroup.position.z += worldZ * moveSpeed;
+
+                playerGroup.rotation.y = Math.atan2(worldX, worldZ);
+            }
+
+            // World Boundaries
+            playerGroup.position.x = Math.max(-90, Math.min(90, playerGroup.position.x));
+            playerGroup.position.z = Math.max(-90, Math.min(90, playerGroup.position.z));
+
+            // Camera Position Follow
+            const camDistance = 6.0;
+            const camHeight = 3.5;
+
+            camera.position.x = playerGroup.position.x - Math.sin(state.cameraAngle) * camDistance;
+            camera.position.z = playerGroup.position.z - Math.cos(state.cameraAngle) * camDistance;
+            camera.position.y = playerGroup.position.y + camHeight;
+
+            camera.lookAt(
+                playerGroup.position.x,
+                playerGroup.position.y + 1.8,
+                playerGroup.position.z
+            );
+
+            checkInteractions();
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // INIT UI & GYM
+        updateHUD();
+        updateHandDumbbell();
+        renderInventoryUI();
+        updateGymVisuals();
+        animate();
+    </script>
+</body>
+</html>
